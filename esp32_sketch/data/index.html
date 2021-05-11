@@ -1,0 +1,194 @@
+<!DOCTYPE HTML><html>
+<!-- Rui Santos - Complete project details at https://RandomNerdTutorials.com
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software. -->
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="./bootstrap.min.css">
+  <script src="./highcharts.js"></script>
+  <script src="./bootstrap.min.js"></script>
+  <style>
+    body {
+      min-width: 310px;
+    	max-width: 800px;
+    	height: 400px;
+      margin: 0 auto;
+    }
+    h2 {
+      font-family: Arial;
+      font-size: 2.5rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  
+  <div id="chart-light" class="container"></div>
+  <div id="chart-backlight" class="container"></div>
+  <div id="settings-form" class="mx-auto" style="width: 80%;margin: 20px">
+  <form action="/" method="post">
+    <div class="form-group">
+      <h4 class="mb-3 h4">WiFi Settings</h4>
+      <label for="str_ssid">SSID</label>
+      <input name="str_ssid" type="text" class="form-control" id="str_ssid">
+      <label for="str_ssidpw">Password</label>
+      <input name="str_ssidpw" type="password" class="form-control" id="str_ssidpw">
+    </div>
+    <hr style="width:100%;text-align:left;margin-left:0">
+    <div class="form-group">
+      <h4 class="mb-3 h4">Backlight Settings</h4>
+      <div class="row">
+        <p class="mb-2"><strong>Brightness level</strong></p>
+        <div class="col">
+          <div class="form-floating mb-3">
+            <input name="minbrightness" id="minbrightness" type="number" class="form-control" min="0" max="255">
+            <label for="minbrightness">Min (0)</label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-floating mb-3">
+            <input name="maxbrightness" id="maxbrightness" type="number" class="form-control" min="0" max="255">
+            <label for="maxbrightness">Max (255)</label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <div class="row">
+        <p class="mb-2"><strong>Sensor response range</strong></p>
+        <div class="col">
+          <div class="form-floating">
+            <input name="minresponseval" id="minresponseval" type="number" class="form-control" min="0" max="255">
+            <label for="minresponseval">Min (0)</label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-floating mb-3">
+            <input name="maxresponseval" id="maxresponseval" type="number" class="form-control" min="0" max="255">
+            <label for="maxresponseval">Max (255)</label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <div class="row mb-5">
+        <div class="col-6" >
+          
+          <p class="mb-2"><strong>Transition time (s)</strong></p>
+            <input name="transitiontime" id="transitiontime" type="number" class="form-control">
+
+        </div>
+        <div class="col-6" >
+          <p class="mb-2"><strong>Peak light val.</strong></p>
+            <input id="peaksensevalue" class="form-control" disabled>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+    <div class="row">
+      <div class="col-12 mb-5" >
+        <input name="set_reboot" class="form-check-input" type="checkbox" value="" id="set_reboot">
+        <label class="form-check-label" for="set_reboot">Reboot after save</label>
+      </div>
+      <div class="row">
+        <div class="col-12 mb-5" >
+          <input name="set_resetpeak" class="form-check-input" type="checkbox" value="" id="set_resetpeak">
+        <label class="form-check-label" for="set_resetpeak">Reset peak light record </label>
+        </div>
+      </div>
+    <div class="col-12 mb-5">
+      <button class="btn btn-primary btn-block mb-4" style="width: 100%;" type="submit">Save</button>
+    </div>
+    
+  </div></div>
+    </div>
+  </form>
+</div>
+  </body>
+</div>
+</body>
+<script>
+
+var getJSON = function(url, callback) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.responseType = 'json';
+    xhr.onload = function() {
+      var status = xhr.status;
+      if (status === 200) {
+        callback(null, xhr.response);
+      } else {
+        callback(status, xhr.response);
+      }
+    };
+    xhr.send();
+};
+
+getJSON('/settings',
+function(err, data) {
+  if (err !== null) {
+    alert('Something went wrong: ' + err);
+  } else {
+    for (var key in data){
+      document.getElementById(key).value = data[key]
+    }
+  }
+});
+
+
+///Backlight chart
+var chartT = new Highcharts.Chart({
+  chart:{ renderTo : 'chart-backlight', height: 220 },
+  title: { text: 'Backlight Value' },
+  series: [
+  {
+    name: "Backlight",
+    showInLegend: true,
+    data: []
+  },{
+    name: "Light",
+    showInLegend: true,
+    data: []
+  }],
+  plotOptions: {
+    line: { animation: false,
+      dataLabels: { enabled: true }
+    },
+    //series: { color: '#059e8a' }
+  },
+  xAxis: { type: 'datetime',
+    dateTimeLabelFormats: { second: '%H:%M:%S' }
+  },
+  yAxis: {
+    title: { text: 'Value (0-255)', max: 255 }
+  },
+  credits: { enabled: false }
+});
+
+setInterval(function ( ) {
+  getJSON('/backlightchart',
+    function(err, data) {
+  if (err !== null) {
+    console.log('Something went wrong: ' + err);
+  } else {
+    var x = (new Date()).getTime();
+    bly = parseFloat(data[0]);
+    lsy = parseFloat(data[1]);
+    if(chartT.series[0].data.length > 40) {
+      chartT.series[0].addPoint([x, bly], true, true, true);
+      chartT.series[1].addPoint([x, lsy], true, true, true);
+    } else {
+      chartT.series[0].addPoint([x, bly], true, false, true);
+      chartT.series[1].addPoint([x, lsy], true, false, true);
+    }
+  }
+});
+}, 3000 ) ;
+</script>
+</html>
