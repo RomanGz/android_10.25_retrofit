@@ -1,14 +1,16 @@
 #include <DNSServer.h>
 #include <driver/adc.h>
-#include "soc/soc.h"
-#include "soc/rtc_cntl_reg.h"
-#include "Preferences.h"
-#include "AsyncJson.h"
+#include <soc/soc.h>
+#include <soc/rtc_cntl_reg.h>
+#include <Preferences.h>
+#include <AsyncJson.h>
 #include <ArduinoJson.h>
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <SPIFFS.h>
-#include "ESPAsyncWebServer.h"
+#include <ESPAsyncWebServer.h>
+#include <ArduinoOTA.h>
+#include <WiFiUdp.h>
 
 const int ledpin = 19;
 const int sensepin = 36;
@@ -48,7 +50,7 @@ public:
 String lightvalue(){
   int i;
   int value = 0;
-  int numReadings = 20;
+  int numReadings = 2000;
   for (i = 0; i < numReadings; i++){
     value = value + adc1_get_raw(ADC1_CHANNEL_0);
     delay(1);
@@ -91,12 +93,32 @@ void setup(){
     Serial.println("An Error has occurred while mounting SPIFFS");
     return;
   }
+  ArduinoOTA.setHostname(str_ssid.c_str());
+  ArduinoOTA.onStart([]() {
+    Serial.println("Start");
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\nEnd");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+  });
+  ArduinoOTA.begin();
+  Serial.println("OTA ready");
   
   dnsServer.start(53, "*", WiFi.softAPIP());
   server.on("/test", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(SPIFFS, "/index.html");
   });
-    server.on("^\\/.*.\.(js|css)$", HTTP_GET, [](AsyncWebServerRequest *request){
+  server.on("^\\/.*.\.(js|css)$", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(SPIFFS, request->url());
   });
   server.on("/lightvalue", HTTP_GET, [](AsyncWebServerRequest *request){
@@ -193,7 +215,7 @@ void setbacklight() {
       brightness = brightness - 1;
     }
     delay(step_interval);
-    Serial.println(brightness);
+    //Serial.println(brightness);
     ledcWrite(0, brightness);
     if (brightness == brightnesstarget) {
       return;
@@ -214,9 +236,20 @@ void update_peaksense(int current_value, bool reset) {
 
 void loop(){
   dnsServer.processNextRequest();
+  ArduinoOTA.handle();
   setbacklight();
   int sensorval = lightvalue().toInt();
-  int calcbrightness = sensorval*2;
+  //int calcbrightness = sensorval*2;
+  float stepratio = float(maxbrightness-minbrightness)/float(maxresponseval-minresponseval);
+  float calcbrightness = minbrightness + (sensorval*stepratio);
+  // Serial.print("sensorva = ");
+  // Serial.println(sensorval);
+  // Serial.print("ratio = ");
+  // Serial.println(stepratio);
+  Serial.print("calcbrightness = ");
+  Serial.println(calcbrightness);
+  // Serial.println(maxbrightness-minbrightness);
+  // Serial.println(maxresponseval-minresponseval);
   if (calcbrightness > maxbrightness) {
     calcbrightness = maxbrightness;
   }
